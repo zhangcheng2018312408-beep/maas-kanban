@@ -3790,6 +3790,7 @@ const i18n = {
     adminKunpengHint: '粘贴JSON对象，格式: {"公司名": {"bd_tagged":true, "bd_name":"张三", "cid":"123"}, ...}',
     adminImport: '导入合并', adminClose: '关闭', adminResultLabel: '导入结果',
     adminNewCount: '新增公司', adminSkipCount: '已存在跳过', adminBDCount: 'BD更新',
+    adminPwdPrompt: '请输入管理员密码:', adminPwdError: '管理员密码错误',
   },
   en: {
     title: 'MaaS Customer Prospecting Board', subtitle: 'Alibaba Intl · APAC & US',
@@ -3879,6 +3880,7 @@ const i18n = {
     adminKunpengHint: 'Paste JSON object: {"CompanyName": {"bd_tagged":true, "bd_name":"John", "cid":"123"}, ...}',
     adminImport: 'Import & Merge', adminClose: 'Close', adminResultLabel: 'Import Result',
     adminNewCount: 'New companies', adminSkipCount: 'Skipped (exists)', adminBDCount: 'BD updated',
+    adminPwdPrompt: 'Enter admin password:', adminPwdError: 'Wrong admin password',
   }
 };
 
@@ -4068,8 +4070,8 @@ function applyBDData(bdData) {
   renderAll();
 }
 
-// --- GitHub Deploy (encrypted token, same password as BD) ---
-const GH_TOKEN_ENCRYPTED = 'MpjfHkislVwbVFcloCGVbRRuymBZr6LDwwcc2r8ZyuvpI3MuAiwRnDka59KSye3heBG9qNDj2ehpfr6xbSqOhqRwELQXNvLAZ0O6WTFK6m7sektTd2uonKc9m85+VY7vfWTHzjrGckUtYRgq9NyCgYOvoAaQE212H1Q1IiJtRY+KZo+/oRLstuVKq8XTx7o=';
+// --- GitHub Deploy (encrypted token, admin password required) ---
+const GH_TOKEN_ENCRYPTED = 'n8EeYNabEf9Pb4HEt8ORqsE1vVJH0/5/B/MF4JBEDZ3pmV02flmlSLA6D3/sCKog0gBmN82uMywY9cFj2Am1GFrAEKD+C8CQ0Ae4oRBXQ3fkHC/8/z5xkm7XjbggzARzYgLYicYEFZtjjjBvuMgMSaFayouJQPsZoSRc5lBKbBzErwrbiG0aI2mtC/lMgDo=';
 let ghToken = null;
 let ghRepo = null;
 let bdPassword = null;
@@ -4175,8 +4177,6 @@ async function unlockBD() {
   if (data) {
     applyBDData(data);
     bdPassword = pwd;
-    const ghInfo = await decryptGHToken(pwd);
-    if (ghInfo) { ghToken = ghInfo.token; ghRepo = ghInfo.repo; }
     document.getElementById('bdUnlockBar').innerHTML = `<span class="unlock-msg unlock-ok">✓ ${t('bdUnlocked')}</span>`;
   } else {
     btn.disabled = false; btn.textContent = t('bdUnlockBtn');
@@ -4789,14 +4789,34 @@ function renderAll() {
 let isAdmin = false;
 let adminModalType = '';
 
-function toggleAdmin() {
-  isAdmin = !isAdmin;
+async function toggleAdmin() {
   const toggle = document.getElementById('adminToggle');
   const btnCrawl = document.getElementById('btnCrawlUpdate');
   const btnKunpeng = document.getElementById('btnKunpengUpdate');
-  toggle.classList.toggle('active', isAdmin);
-  if (isAdmin) { btnCrawl.classList.add('visible'); btnKunpeng.classList.add('visible'); }
-  else { btnCrawl.classList.remove('visible'); btnKunpeng.classList.remove('visible'); }
+  if (isAdmin) {
+    // Toggle off
+    isAdmin = false;
+    ghToken = null; ghRepo = null;
+    toggle.classList.remove('active');
+    btnCrawl.classList.remove('visible');
+    btnKunpeng.classList.remove('visible');
+    return;
+  }
+  // Prompt for admin password
+  const pwd = prompt(t('adminPwdPrompt') || '请输入管理员密码:');
+  if (!pwd) return;
+  toggle.style.opacity = '0.5';
+  const ghInfo = await decryptGHToken(pwd);
+  toggle.style.opacity = '';
+  if (ghInfo) {
+    ghToken = ghInfo.token; ghRepo = ghInfo.repo;
+    isAdmin = true;
+    toggle.classList.add('active');
+    btnCrawl.classList.add('visible');
+    btnKunpeng.classList.add('visible');
+  } else {
+    alert(t('adminPwdError') || '管理员密码错误');
+  }
 }
 
 function openAdminModal(type) {
