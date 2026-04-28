@@ -4034,8 +4034,11 @@ let allCompanies = [
   };
 }).sort((a, b) => b.totalScore - a.totalScore);
 
-// Load saved stages from localStorage
-const savedStages = JSON.parse(localStorage.getItem('maas_stages') || '{}');
+// Load saved stages: from embedded PIPELINE data first, then localStorage as fallback
+// ===PIPELINE_START===
+const PIPELINE_STAGES = {};
+// ===PIPELINE_END===
+const savedStages = Object.keys(PIPELINE_STAGES).length > 0 ? Object.assign({}, PIPELINE_STAGES) : JSON.parse(localStorage.getItem('maas_stages') || '{}');
 allCompanies.forEach(c => { if (savedStages[c.company]) c.stage = savedStages[c.company]; });
 
 // --- BD Data (AES-256-GCM encrypted, password required) ---
@@ -4133,6 +4136,12 @@ async function deployToGitHub(type) {
     if (type === 'crawl') {
       const newData = buildDataSection();
       content = content.replace(/\/\/ ===DATA_START===[\s\S]*?(?=\/\/ ===DATA_END===)/, newData);
+      // Also persist current pipeline stages
+      const stagesJson = JSON.stringify(savedStages);
+      content = content.replace(
+        /\/\/ ===PIPELINE_START===[\s\S]*?\/\/ ===PIPELINE_END===/,
+        '// ===PIPELINE_START===\nconst PIPELINE_STAGES = ' + stagesJson + ';\n// ===PIPELINE_END==='
+      );
     } else if (type === 'kunpeng') {
       const bdObj = {};
       allCompanies.forEach(c => { if (c.bd_tagged) bdObj[c.company] = { bd_tagged:true, bd_name:c.bd_name, cid:c.bd_cid, dept:c.bd_dept }; });
@@ -4619,6 +4628,41 @@ function setStage(idx, stage) {
   localStorage.setItem('maas_stages', JSON.stringify(savedStages));
   openDetail(idx);
   renderAll();
+  // Auto-deploy pipeline if admin is logged in
+  if (isAdmin && ghToken) deployPipeline();
+}
+
+let _pipelineDeployTimer = null;
+function deployPipeline() {
+  // Debounce: wait 2s after last change before deploying
+  if (_pipelineDeployTimer) clearTimeout(_pipelineDeployTimer);
+  _pipelineDeployTimer = setTimeout(async () => {
+    try {
+      const getResp = await fetch('https://api.github.com/repos/' + ghRepo + '/contents/index.html', {
+        headers: { 'Authorization': 'token ' + ghToken, 'Accept': 'application/vnd.github.v3+json' }
+      });
+      const fileInfo = await getResp.json();
+      const sha = fileInfo.sha;
+      const bytes = Uint8Array.from(atob(fileInfo.content.replace(/\n/g, '')), c => c.charCodeAt(0));
+      let content = new TextDecoder().decode(bytes);
+      const stagesJson = JSON.stringify(savedStages);
+      content = content.replace(
+        /\/\/ ===PIPELINE_START===[\s\S]*?\/\/ ===PIPELINE_END===/,
+        '// ===PIPELINE_START===\nconst PIPELINE_STAGES = ' + stagesJson + ';\n// ===PIPELINE_END==='
+      );
+      const encBytes = new TextEncoder().encode(content);
+      let b64 = '';
+      for (let i = 0; i < encBytes.length; i += 8192) b64 += String.fromCharCode.apply(null, encBytes.subarray(i, Math.min(i + 8192, encBytes.length)));
+      b64 = btoa(b64);
+      const putResp = await fetch('https://api.github.com/repos/' + ghRepo + '/contents/index.html', {
+        method: 'PUT',
+        headers: { 'Authorization': 'token ' + ghToken, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: 'Update pipeline stages', content: b64, sha: sha })
+      });
+      if (putResp.ok) console.log('Pipeline deployed');
+      else console.error('Pipeline deploy failed');
+    } catch(e) { console.error('Pipeline deploy error:', e); }
+  }, 2000);
 }
 
 // --- Filters & Sort ---
