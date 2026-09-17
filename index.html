@@ -2683,6 +2683,7 @@ async function unlockBoard() {
     document.getElementById('boardOverlay').classList.add('hidden');
     renderTabs();
     renderFilters();
+    applyFilters();
     renderAll();
   } else {
     btn.disabled = false; btn.textContent = '解锁';
