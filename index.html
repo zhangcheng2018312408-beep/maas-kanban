@@ -2522,6 +2522,11 @@ function sigmoid(x, midpoint, steepness) {
   return 100 / (1 + Math.exp(-steepness * (x - midpoint)));
 }
 
+function fmtSpend(v) {
+  const n = v || 0;
+  return n >= 1000000 ? '$' + (n / 1000000).toFixed(1) + 'M' : '$' + (n / 1000).toFixed(0) + 'K';
+}
+
 // ---- X轴: 消费潜力 (0-100) ----
 // 子维度: 月消费预估(40%) + AI Native深度(30%) + 企业规模(20%) + 产品匹配(10%)
 function calcRevenuePotential(c) {
@@ -2876,7 +2881,7 @@ function renderMetrics() {
   const depCount = fc.filter(c => c.quadrant.key === 'deprioritize').length;
   document.getElementById('metricsBar').innerHTML = [
     { label: t('totalLeads'), value: fc.length, sub: `${fc.filter(c=>c.region==='sea').length} SEA / ${fc.filter(c=>c.region==='jp').length} JP / ${fc.filter(c=>c.region==='kr').length} KR / ${fc.filter(c=>c.region==='us').length} US / ${fc.filter(c=>c.region==='hk').length} HK` },
-    { label: t('estMonthlySpend'), value: '$' + (totalSpend/1000).toFixed(0) + 'K', sub: t('annualized') + ' $' + (totalSpend*12/1000000).toFixed(1) + 'M' },
+    { label: t('estMonthlySpend'), value: fmtSpend(totalSpend), sub: t('annualized') + ' $' + (totalSpend*12/1000000).toFixed(1) + 'M' },
     { label: t('starCustomer'), value: starCount, sub: t('starSub'), color: '#22c55e' },
     { label: t('quickWin'), value: quickCount, sub: t('quickSub'), color: '#f59e0b' },
     { label: t('potential'), value: potentialCount, sub: t('potentialSub'), color: '#3b82f6' },
@@ -2932,7 +2937,7 @@ function renderTable() {
       <td><div style="display:flex;align-items:center;gap:8px;"><strong style="color:${c.totalScore>=70?'var(--green)':c.totalScore>=50?'var(--yellow)':'var(--red)'}">${c.totalScore}</strong><div class="score-bar"><div class="score-fill ${scoreColor(c.totalScore)}" style="width:${c.totalScore}%"></div></div></div></td>
       <td style="color:#22c55e">${c.revenuePotential}</td>
       <td style="color:#3b82f6">${c.conversionProb}</td>
-      <td>$${((c.estimated_monthly_spend_usd||0)/1000).toFixed(0)}K</td>
+      <td>${fmtSpend(c.estimated_monthly_spend_usd)}</td>
       <td>${bdStatusBadge(c)}</td>
       <td>${stageLabel(c.stage)}</td>
       <td><button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openDetail(${allCompanies.indexOf(c)})">${t('btnDetail')}</button></td>
@@ -2949,7 +2954,7 @@ function renderMatrix() {
     const y = (1 - c.revenuePotential / 100) * 100;
     const size = Math.max(10, Math.min(28, 8 + Math.log10(Math.max(c.estimated_monthly_spend_usd || 1000, 1000)) * 4));
     const idx = allCompanies.indexOf(c);
-    return `<div class="matrix-dot" style="left:calc(${x}% - ${size/2}px);top:calc(${y}% - ${size/2}px);width:${size}px;height:${size}px;background:${regionColors[c.region]||'#666'};border:2px solid ${c.quadrant.color};" onclick="openDetail(${idx})" title="${c.company}\n${t('thRevenuePotential')}: ${c.revenuePotential} | ${t('thConversionProb')}: ${c.conversionProb}\n${t('thQuadrant')}: ${quadrantLabelT(c.quadrant.key)} | $${((c.estimated_monthly_spend_usd||0)/1000).toFixed(0)}K${t('perMonth')}"></div>`;
+    return `<div class="matrix-dot" style="left:calc(${x}% - ${size/2}px);top:calc(${y}% - ${size/2}px);width:${size}px;height:${size}px;background:${regionColors[c.region]||'#666'};border:2px solid ${c.quadrant.color};" onclick="openDetail(${idx})" title="${c.company}\n${t('thRevenuePotential')}: ${c.revenuePotential} | ${t('thConversionProb')}: ${c.conversionProb}\n${t('thQuadrant')}: ${quadrantLabelT(c.quadrant.key)} | ${fmtSpend(c.estimated_monthly_spend_usd)}${t('perMonth')}"></div>`;
   }).join('');
 
   document.getElementById('matrixView').innerHTML = `
@@ -2993,12 +2998,12 @@ function renderMatrix() {
           return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;border-left:3px solid ${q.color}">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
               <strong style="color:${q.color};font-size:13px;">${t(q.i18nLabel)} (${qc.length})</strong>
-              <span style="font-size:10px;color:var(--text2)">$${(qc.reduce((s,c)=>s+(c.estimated_monthly_spend_usd||0),0)/1000).toFixed(0)}K${t('perMonth')}</span>
+              <span style="font-size:10px;color:var(--text2)">${fmtSpend(qc.reduce((s,c)=>s+(c.estimated_monthly_spend_usd||0),0))}${t('perMonth')}</span>
             </div>
             <div style="font-size:10px;color:var(--text2);margin-bottom:8px;">${t(q.i18nStrategy)}</div>
             ${qc.slice(0,8).map(c => `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:11px;border-bottom:1px solid var(--border);">
               <span style="cursor:pointer" onclick="openDetail(${allCompanies.indexOf(c)})">${c.company}</span>
-              <span style="color:var(--text2)">RP:${c.revenuePotential} CP:${c.conversionProb} | $${((c.estimated_monthly_spend_usd||0)/1000).toFixed(0)}K</span>
+              <span style="color:var(--text2)">RP:${c.revenuePotential} CP:${c.conversionProb} | ${fmtSpend(c.estimated_monthly_spend_usd)}</span>
             </div>`).join('')}
             ${qc.length > 8 ? `<div style="font-size:10px;color:var(--text2);padding-top:4px;">${t('matrixMorePrefix')}${qc.length-8}${t('matrixMoreSuffix')}</div>` : ''}
           </div>`;
@@ -3033,7 +3038,7 @@ function renderKanban() {
             <span class="kc-score" style="color:${c.totalScore>=70?'var(--green)':c.totalScore>=50?'var(--yellow)':'var(--red)'}">
               ${c.totalScore}${t('score')}
             </span>
-            <span class="kc-tag">$${((c.estimated_monthly_spend_usd||0)/1000).toFixed(0)}K${t('perMonth')}</span>
+            <span class="kc-tag">${fmtSpend(c.estimated_monthly_spend_usd)}${t('perMonth')}</span>
           </div>
         </div>
       `).join('')}
@@ -3069,7 +3074,7 @@ function renderInsights() {
           <div class="bar-row">
             <span class="bar-label">${t(regionI18nKeys[r])}</span>
             <div class="bar-track"><div class="bar-fill" style="width:${Math.max(5, regionCounts[r]/fc.length*100)}%;background:${regionColors[r]}">${regionCounts[r]}${t('unitCompanies')}</div></div>
-            <span class="bar-value">$${(regionSpend[r]/1000).toFixed(0)}K</span>
+            <span class="bar-value">${fmtSpend(regionSpend[r])}</span>
           </div>
         `).join('')}
       </div>
@@ -3104,7 +3109,7 @@ function renderInsights() {
         ${top10Spend.map(c => `
           <div class="bar-row">
             <span class="bar-label" style="width:120px;font-size:10px;">${c.company}</span>
-            <div class="bar-track"><div class="bar-fill" style="width:${Math.max(5,(c.estimated_monthly_spend_usd||0)/maxSpend*100)}%;background:var(--accent)">$${((c.estimated_monthly_spend_usd||0)/1000).toFixed(0)}K</div></div>
+            <div class="bar-track"><div class="bar-fill" style="width:${Math.max(5,(c.estimated_monthly_spend_usd||0)/maxSpend*100)}%;background:var(--accent)">${fmtSpend(c.estimated_monthly_spend_usd)}</div></div>
             <span class="bar-value">${regionBadge(c.region)}</span>
           </div>
         `).join('')}
@@ -3201,7 +3206,7 @@ function openDetail(idx) {
     <div class="detail-grid">
       <div class="detail-item"><div class="dl">${t('detailTotalScore')}</div><div class="dv" style="font-size:28px;">${c.totalScore}</div></div>
       <div class="detail-item"><div class="dl">${t('detailRPCP')}</div><div class="dv" style="font-size:22px;"><span style="color:#22c55e">${c.revenuePotential}</span> / <span style="color:#3b82f6">${c.conversionProb}</span></div></div>
-      <div class="detail-item"><div class="dl">${t('detailMonthlySpend')}</div><div class="dv">$${((c.estimated_monthly_spend_usd||0)/1000).toFixed(0)}K${t('perMonth')}</div></div>
+      <div class="detail-item"><div class="dl">${t('detailMonthlySpend')}</div><div class="dv">${fmtSpend(c.estimated_monthly_spend_usd)}${t('perMonth')}</div></div>
       <div class="detail-item"><div class="dl">${t('detailLocation')}</div><div class="dv">${c.city}, ${c.country}</div></div>
       <div class="detail-item"><div class="dl">${t('detailSector')}</div><div class="dv">${sectorLabel(c.sector)}</div></div>
       <div class="detail-item"><div class="dl">${t('detailEmployees')}</div><div class="dv">${c.employee_count_est || '-'}</div></div>
